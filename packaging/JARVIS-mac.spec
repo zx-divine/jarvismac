@@ -4,6 +4,14 @@ from PyInstaller.utils.hooks import collect_all
 
 root = Path(SPECPATH).parent
 datas, binaries, hiddenimports = collect_all('vosk')
+# Vosk's Mac wheel calls its Mach-O library libvosk.dyld. PyInstaller's
+# generic *.dylib collector can classify that unusual suffix as data.
+# Treat it as code so arm64 thinning and ad-hoc code signing are applied.
+vosk_native = [(source, destination) for source, destination in datas
+               if Path(source).name == 'libvosk.dyld']
+datas = [(source, destination) for source, destination in datas
+         if Path(source).name != 'libvosk.dyld']
+binaries += vosk_native
 datas += [(str(root / 'models/vosk-model-small-en-us-0.15'), 'models/vosk-model-small-en-us-0.15')]
 a = Analysis([str(root / 'run_jarvis.py')], pathex=[str(root)], binaries=binaries,
              datas=datas, hiddenimports=hiddenimports, excludes=[], noarchive=False)
