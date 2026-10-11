@@ -20,6 +20,7 @@ Local TTS now runs in an interruptible native OS subprocess, with stdin-only spe
 | Wake phrase transcription | Real Vosk model loaded; synthetic local phrase sample recognized in earlier verification; human microphone wake phrase **not verified** |
 | State/voice safety | Tests cover sleeping startup, local speech controls, repeated wakes, expired replies/actions, Hard Mute across unmute, stopped cloud speech, simulated disconnect/invalid format, capture abort/close, missing model and UI lifecycle |
 | Packaged executable | Final PyInstaller build completed; full package launched, four lifecycle cycles, zero reported voice errors, bundled Vosk loaded, sleeping finish, clean exit 0 |
+| Clean exit and relaunch | Same isolated database reopened, instance lock released, bundled model loaded, zero voice errors, exit 0 |
 | Key-free package | Microphone initially off, no AI task requested; local system metrics worked |
 | Package measurements | UI first observed ready at **8.4 s**; full lifecycle/check exit **42.58 s** including the intentional 30 s hold and cold model check |
 | Visible standby measurements | **105.2 MiB RSS**, **2.46% of one CPU core** mean across 14 one-second idle samples; model-loaded RSS **231.0 MiB** |
@@ -40,5 +41,7 @@ Windows: double-click Start-JARVIS.bat, press Wake, then use local commands or L
 Mac: obtain the prepared audited source archive, extract it on the M1, run bash scripts/setup_macos.sh, then .venv/bin/python -m jarvis. Build with bash scripts/build_macos.sh. Review normal macOS microphone/Automation/Screen Recording/Keychain permissions yourself.
 
 Still unverified: the owner's actual spoken wake/sleep accuracy, unplug/reconnect with physical hardware, absent physical output hardware, real Gemini authentication/streaming/quota/function calls, and all native Mac hardware/permissions. Mocked provider tests do verify official SDK request serialization and error/cancellation boundaries. Speech remains half duplex; use Sleep, Stop Speaking or Hard Mute during playback. Audible playback was not independently confirmed by a human listener.
+
+GitHub push pending — authentication required. The single noninteractive push failed with exit 128 and was not retried. No commit was pushed and GitHub Actions has not run for this local work.
 
 Publishing: only safe source is authorized for https://github.com/zx-divine/jarvis on main. See docs/RELEASE-STATUS.md and the final handoff report for the actual commit and push outcome. No authenticator or interactive login is used.
