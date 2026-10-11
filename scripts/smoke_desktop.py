@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-os.environ["QT_QPA_PLATFORM"] = "windows" if "--native" in sys.argv else "offscreen"
+os.environ["QT_QPA_PLATFORM"] = ("cocoa" if sys.platform == "darwin" else "windows") if "--native" in sys.argv else "offscreen"
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTextToSpeech import QTextToSpeech

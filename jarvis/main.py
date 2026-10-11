@@ -75,11 +75,18 @@ def main():
         window.show()
     if "--smoke-test" in sys.argv:
         from PySide6.QtCore import QTimer
+        import json
+        import time
+        def mark_phase(phase):
+            (directory / "phase.json").write_text(json.dumps({"phase": phase, "time_monotonic": time.monotonic()}), encoding="utf-8")
+        mark_phase("ui-ready")
         if "--lifecycle-test" in sys.argv:
             actions = [window.wake, window.sleep, lambda: window.hard_mute_button.setChecked(True), lambda: window.hard_mute_button.setChecked(False), window.stop_all]
             for step in range(20):
                 QTimer.singleShot(1000 + step * 700, actions[step % len(actions)])
+            QTimer.singleShot(16000, lambda: mark_phase("idle"))
         def verify_launch():
+            mark_phase("model-check")
             import json
             import platform
             from .audio import Microphone
@@ -94,6 +101,7 @@ def main():
             import psutil
             report["process_rss_mb"] = round(psutil.Process().memory_info().rss / 2**20, 1)
             report["lifecycle_cycles"] = 4 if "--lifecycle-test" in sys.argv else 0
+            report["voice_errors"] = window.voice_error_count
             window.grab().save(str(directory / "window.png"))
             (directory / "launch-check.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
             window.close()

@@ -1,6 +1,7 @@
 """One asyncio service thread. Qt widgets are only touched on the UI thread."""
 import asyncio
 from concurrent.futures import Future
+from concurrent.futures import InvalidStateError
 import threading
 from PySide6.QtCore import QObject, Signal
 
@@ -28,10 +29,18 @@ class Service(QObject):
         self.async_task = None
         self.validity = lambda generation: True
         self.pending_approvals = set()
+        self.closed = False
 
     def _run(self):
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
+
+    @staticmethod
+    def resolve(answer, value):
+        try:
+            answer.set_result(value)
+        except InvalidStateError:
+            pass  # Cancellation or another thread already resolved this approval.
 
     async def approve(self, tool, args, generation=0):
         answer = Future()
@@ -43,7 +52,7 @@ class Service(QObject):
             self.pending_approvals.discard(answer)
 
     def submit(self, coroutine, callback_kind, generation=0):
-        if self.active.is_set():
+        if self.closed or self.active.is_set():
             coroutine.close()
             return False
         self.active.set()
@@ -69,6 +78,8 @@ class Service(QObject):
         return True
 
     def cancel(self):
+        if self.closed:
+            return
         self.cancel_requested.set()
         def cancel_task():
             if self.async_task:
@@ -76,9 +87,11 @@ class Service(QObject):
         self.loop.call_soon_threadsafe(cancel_task)
         for answer in list(self.pending_approvals):
             if not answer.done():
-                answer.set_result(False)
+                self.resolve(answer, False)
 
     def close(self):
+        if self.closed:
+            return
         self.cancel()
         async def shutdown():
             pending = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
@@ -90,3 +103,4 @@ class Service(QObject):
         finally:
             self.loop.call_soon_threadsafe(self.loop.stop)
             self.thread.join(timeout=3)
+            self.closed = True

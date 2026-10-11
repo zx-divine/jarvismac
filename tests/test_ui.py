@@ -145,3 +145,19 @@ def test_hard_mute_discards_queued_voice_transcript(qapp, tmp_path):
         assert not w.pending_send and not w.history and not w.busy
     finally:
         w.close()
+
+def test_stop_speaking_discards_queued_cloud_audio(qapp, tmp_path):
+    w = window(qapp, tmp_path)
+    try:
+        w.wake()
+        token = w.session.generation
+        async def delayed_audio():
+            await asyncio.sleep(100)
+            return b"late audio"
+        w.begin("speech", delayed_audio(), "speech_audio")
+        w.stop_speech()
+        w.service_event(token, "speech_audio", b"must not play")
+        wait_until(qapp, lambda: not w.busy)
+        assert w.audio_file is None and w.session.generation != token
+    finally:
+        w.close()

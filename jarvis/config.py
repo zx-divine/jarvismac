@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import os
+import sys
 from urllib.parse import urlsplit
 
 ENDPOINTS = {
@@ -11,7 +12,8 @@ ENDPOINTS = {
 }
 
 def data_dir() -> Path:
-    root = Path(os.environ.get("JARVIS_DATA_DIR") or (Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ASH-JARVIS"))
+    default = Path.home() / "Library/Application Support/ASH-JARVIS" if sys.platform == "darwin" else Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ASH-JARVIS"
+    root = Path(os.environ.get("JARVIS_DATA_DIR") or default)
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -61,6 +63,14 @@ class Settings:
     start_minimized: bool = False
 
     def validate(self):
+        for name in ("speech_enabled", "mic_enabled", "continuous", "wake_word", "hard_mute", "remember_history", "developer_mode", "low_power", "start_minimized"):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError("Saved permission and toggle values must be booleans.")
+        if self.mic_device is not None and (type(self.mic_device) is not int or self.mic_device < 0):
+            raise ValueError("Select a real microphone device or the system default.")
+        for name in ("approved_folders", "disabled_tools"):
+            if not isinstance(getattr(self, name), list) or any(not isinstance(value, str) for value in getattr(self, name)):
+                raise ValueError("Saved folder and tool permissions must be lists of strings.")
         if self.provider not in ENDPOINTS:
             raise ValueError("Unknown AI provider.")
         self.endpoint = validate_endpoint(self.endpoint)

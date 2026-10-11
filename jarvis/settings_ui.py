@@ -114,8 +114,8 @@ class SettingsPanel(QWidget):
         self.fields["vad_threshold"].setValue(settings.vad_threshold)
         combo(voice, "Language", "language", [("Auto / Hinglish", "auto"), ("English", "en"), ("Hindi", "hi")])
         check(voice, "Speak replies", "speech_enabled")
-        combo(voice, "Speech output", "speech_mode", [("Local Windows voice (offline)", "local"), ("Cloud audio API (uploads reply text)", "cloud")])
-        local_voice = combo(voice, "Windows voice", "local_voice", [("Windows default", "")])
+        combo(voice, "Speech output", "speech_mode", [("Local OS voice (offline)", "local"), ("Cloud audio API (uploads reply text)", "cloud")])
+        local_voice = combo(voice, "Local voice", "local_voice", [("System default", "")])
         tts = local_speech(self)
         for available in tts.availableVoices():
             local_voice.addItem(available.name(), available.name())
@@ -130,10 +130,10 @@ class SettingsPanel(QWidget):
             local_voice.setCurrentIndex(max(0, local_voice.findData(selected)))
         tts.voicesChanged.connect(refresh_voices)
         self.local_tts = tts
-        outputs = [("Windows default speaker", "")]
+        outputs = [("System default speaker", "")]
         outputs += [(d.description(), bytes(d.id()).hex()) for d in QMediaDevices.audioOutputs()]
         combo(voice, "Cloud speech speaker", "speaker_device", outputs)
-        note = QLabel("Local Windows speech uses the Windows default output device. Change it in Windows Sound settings.\nVosk accuracy and languages depend on the downloaded model. An English model is required for the listed English wake/sleep phrases. Cloud recognition can transcribe multilingual commands while awake.\nWake/sleep always stays local. Listening is paused during TTS to prevent self-triggering; use Stop Speaking or Sleep buttons to interrupt playback.")
+        note = QLabel("Local speech uses the OS default output device. Change it in your system Sound settings.\nVosk accuracy and languages depend on the downloaded model. An English model is required for the listed English wake/sleep phrases. Cloud recognition can transcribe multilingual commands while awake.\nWake/sleep always stays local. Listening is paused during TTS to prevent self-triggering; use Stop Speaking or Sleep buttons to interrupt playback.")
         note.setWordWrap(True)
         voice.addRow(note)
         number(voice, "Voice speed (−1 to +1)", "voice_rate", -1, 1, True)

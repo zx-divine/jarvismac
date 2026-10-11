@@ -35,4 +35,7 @@ The automated suite uses no real cloud requests and no destructive Windows actio
 
 The normal user context is required for Windows DPAPI. Restricted automation sandboxes may also hide installed Windows voices/fonts. Native rendering and voice verification therefore ran in the normal Windows user context. Never skip an actual failure in a normal deployment merely to label the suite green.
 
-The final suite passed **44 tests**. The packaged Windows executable launched successfully with exit code 0, local voices, bundled Vosk and system metrics, starting in SLEEPING with no microphone or API requests. The full record is in `BUILD-REPORT.md`.
+The initial suite passed 44 tests but missed the real speech interruption crash. The recovery suite now passes **67 tests**. The packaged Windows executable launched successfully with exit code 0, local voices, bundled Vosk and system metrics, starting in SLEEPING with no microphone or API requests. The full record is in `BUILD-REPORT.md`.
+
+
+Current recovery/package results supersede the initial checks above. See BUILD-REPORT.md and docs/CRASH-RECOVERY.md. Native Mac execution remains unverified.

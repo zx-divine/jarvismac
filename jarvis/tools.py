@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import time
 import webbrowser
+import sys
 from datetime import datetime
 from urllib.parse import urlsplit, quote_plus
 import psutil
@@ -73,9 +74,11 @@ def string(description, **extra):
     return {"type": "string", "description": description, **extra}
 
 class Registry:
-    def __init__(self, settings, private_dir):
+    def __init__(self, settings, private_dir, platform_adapter=None):
         self.settings, self.private_dir = settings, Path(private_dir)
         self.policy = FilePolicy(settings.approved_folders, private_dir)
+        from .platforms import adapter
+        self.platform = platform_adapter or adapter(self)
         self.tools = {}
         self.register(Tool("system_info", "Report actual CPU, RAM, disk and battery usage.", {}, lambda: system_info(), False))
         self.register(Tool("current_time", "Report actual current local time, date and timezone from Windows.", {}, lambda: {"local_time": datetime.now().astimezone().isoformat(), "timezone": time.tzname}, False))
@@ -92,6 +95,13 @@ class Registry:
         self.register(Tool("screenshot", "Capture the screen to an approved PNG path after explicit approval. Image is saved locally, not sent to AI.", {"path": string("Absolute new .png path")}, self.screenshot))
         self.register(Tool("power", "Shut down or restart Windows after confirmation, with a 60-second abort window.", {"action": string("Power action", enum=["shutdown", "restart", "abort"])}, self.power))
         self.register(Tool("dev_command", "Run one approved development command in an approved project. Project code can execute; output may be sent to AI.", {"directory": string("Absolute project directory"), "command": string("Allowlisted command", enum=["git_status", "git_diff", "pytest", "npm_test"])}, self.dev_command, True, True))
+        if sys.platform == "darwin":
+            self.tools["open_app"].description = "Open an allowlisted macOS app. explorer/settings/notepad map to Finder/System Settings/TextEdit."
+            self.tools["open_project"].description = "Open an approved project folder in Finder or VS Code."
+            self.tools["volume"].description = "Adjust macOS output volume or mute using native AppleScript."
+            self.tools["media"].description = "Control the running macOS Music app; requires normal Automation permission."
+            self.tools["power"].description = "Schedule a macOS shutdown/restart with a 60-second JARVIS abort window; macOS may require confirmation."
+            self.tools["current_time"].description = "Report actual local time, date and timezone."
 
     def register(self, tool):
         if tool.name in self.tools:
@@ -137,6 +147,9 @@ class Registry:
             return {"ok": False, "error": scrub(str(exc))[:1000]}
 
     def open_app(self, app):
+        return self.platform.open_app(app)
+
+    def _windows_open_app(self, app):
         if os.name != "nt":
             raise RuntimeError("Application launch requires Windows.")
         if app == "settings":
@@ -212,6 +225,12 @@ class Registry:
         folder = self.policy.check(path)
         if not folder.is_dir():
             raise ValueError("Select a project directory.")
+        return self.platform.open_project(str(folder), editor)
+
+    def _windows_open_project(self, path, editor):
+        folder = self.policy.check(path)
+        if not folder.is_dir():
+            raise ValueError("Select a project directory.")
         executable = vscode() if editor == "vscode" else windows_executable("explorer.exe")
         subprocess.Popen([executable, str(folder)], shell=False)
         return "Project launch request sent to Windows."
@@ -226,14 +245,24 @@ class Registry:
         return "Media key sent to Windows."
 
     def volume(self, action, steps):
+        return self.platform.volume(action, steps)
+
+    def _windows_volume(self, action, steps):
         if not 1 <= steps <= 10:
             raise ValueError("Volume steps must be between 1 and 10.")
         return self._key({"up": 0xAF, "down": 0xAE, "mute": 0xAD}[action], 1 if action == "mute" else steps)
 
     def media(self, action):
+        return self.platform.media(action)
+
+    def _windows_media(self, action):
         return self._key({"play_pause": 0xB3, "next": 0xB0, "previous": 0xB1, "stop": 0xB2}[action])
 
     def screenshot(self, path):
+        file = self.policy.check(path, False)
+        return self.platform.screenshot(str(file))
+
+    def _native_screenshot(self, path):
         from PIL import ImageGrab
         file = self.policy.check(path, False)
         if file.suffix.lower() != ".png":
@@ -244,6 +273,9 @@ class Registry:
         return {"saved_locally": str(file), "uploaded": False}
 
     def power(self, action):
+        return self.platform.power(action)
+
+    def _windows_power(self, action):
         args = ["/a"] if action == "abort" else ["/s" if action == "shutdown" else "/r", "/t", "60"]
         subprocess.run([windows_executable("shutdown.exe"), *args], check=True, timeout=10, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         return "Power request sent to Windows. Use Abort shutdown within 60 seconds to cancel." if action != "abort" else "Pending shutdown/restart cancelled."
@@ -256,15 +288,16 @@ class Registry:
             raise ValueError("Choose a project directory.")
         # Fixed argv, no user/model command interpolation, no shell=True.
         if command.startswith("git_"):
-            executable = shutil.which("git.exe")
+            executable = shutil.which("git.exe" if os.name == "nt" else "git")
             argv = [executable, "--no-pager", "-c", "core.fsmonitor=false", "-c", "core.pager=cat", "-c", "diff.external=", "status", "--short"] if command == "git_status" else [executable, "--no-pager", "-c", "core.fsmonitor=false", "-c", "diff.external=", "diff", "--no-ext-diff", "--no-textconv"]
         elif command == "pytest":
             if getattr(sys, "frozen", False):
                 raise RuntimeError("The packaged app cannot act as a Python interpreter. Run pytest from the source virtual environment or your terminal.")
             argv = [sys.executable, "-m", "pytest", "-q"]
         else:
-            node = shutil.which("node.exe")
-            npm = Path(node).parent / "node_modules/npm/bin/npm-cli.js" if node else Path("/__missing__")
+            node = shutil.which("node.exe" if os.name == "nt" else "node")
+            npm_command = shutil.which("npm") if os.name != "nt" else None
+            npm = Path(npm_command).resolve() if npm_command else Path(node).parent / "node_modules/npm/bin/npm-cli.js" if node else Path("/__missing__")
             argv = [node, str(npm), "test", "--", "--watch=false"]
             if not npm.is_file():
                 raise FileNotFoundError("Install Node.js with npm to run npm test.")

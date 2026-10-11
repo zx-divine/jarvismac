@@ -1,0 +1,2 @@
+# Shared dependencies; Vosk 0.3.44 has the official macOS universal2 wheel.
+-r requirements.txt

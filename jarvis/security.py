@@ -1,11 +1,11 @@
 """Windows DPAPI secrets and conservative filesystem capabilities."""
 import ctypes
-from ctypes import wintypes
 import hashlib
 import os
 from pathlib import Path
 import re
 import stat
+import sys
 
 def gemini_key(vault):
     """Read the key without importing the large provider SDK on the UI thread."""
@@ -13,8 +13,12 @@ def gemini_key(vault):
     return os.environ.get("GEMINI_API_KEY", "").strip() or vault.get("chat:gemini", ENDPOINTS["gemini"]) or vault.get("chat:gemini", "https://generativelanguage.googleapis.com/v1beta/openai")
 
 class SecretVault:
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, keychain=None, platform_name=None):
         self.directory = directory / "credentials"
+        self.keychain = keychain
+        if self.keychain is None and (platform_name or sys.platform) == "darwin":
+            from .keychain import MacKeychain
+            self.keychain = MacKeychain()
 
     def _path(self, purpose, endpoint):
         return self.directory / (hashlib.sha256((purpose + "|" + endpoint).encode()).hexdigest() + ".bin")
@@ -23,6 +27,7 @@ class SecretVault:
     def _crypt(data: bytes, decrypt=False):
         if os.name != "nt":
             raise RuntimeError("Credential storage requires Windows DPAPI; no plaintext fallback is provided.")
+        from ctypes import wintypes
         class Blob(ctypes.Structure):
             _fields_ = [("size", wintypes.DWORD), ("data", ctypes.POINTER(ctypes.c_ubyte))]
         buffer = ctypes.create_string_buffer(data)
@@ -43,10 +48,15 @@ class SecretVault:
             kernel.LocalFree(target.data)
 
     def get(self, purpose, endpoint):
+        if self.keychain:
+            return self.keychain.get(self._path(purpose, endpoint).stem)
         path = self._path(purpose, endpoint)
         return self._crypt(path.read_bytes(), True).decode() if path.exists() else ""
 
     def set(self, purpose, endpoint, secret):
+        if self.keychain:
+            self.keychain.set(self._path(purpose, endpoint).stem, secret)
+            return
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self._path(purpose, endpoint)
         protected = self._crypt(secret.encode())
@@ -55,14 +65,20 @@ class SecretVault:
         temporary.replace(path)
 
     def delete(self, purpose, endpoint):
+        if self.keychain:
+            self.keychain.delete(self._path(purpose, endpoint).stem)
+            return
         self._path(purpose, endpoint).unlink(missing_ok=True)
 
     def clear(self):
+        if self.keychain:
+            self.keychain.delete()
+            return
         if self.directory.exists():
             for path in self.directory.glob("*.bin"):
                 path.unlink()
 
-SENSITIVE = {".env", ".aws", ".ssh", ".gnupg", ".git", ".azure", ".docker", ".npmrc", ".pypirc", ".netrc", ".git-credentials", "credentials", "credentials.json", "secrets.json", "id_rsa", "id_ed25519"}
+SENSITIVE = {".env", ".aws", ".ssh", ".gnupg", ".git", ".azure", ".docker", ".npmrc", ".pypirc", ".netrc", ".git-credentials", "credentials", "credentials.json", "secrets.json", "id_rsa", "id_ed25519", "keychains"}
 TEXT_EXTENSIONS = {".txt", ".md", ".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".scss", ".php", ".sql", ".json", ".yaml", ".yml", ".toml", ".ini", ".xml", ".csv", ".log"}
 
 class FilePolicy:

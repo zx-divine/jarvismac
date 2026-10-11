@@ -4,9 +4,10 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import os
 
 ROOT = Path(__file__).resolve().parents[1]
-TOP = {".gitignore", ".env.example", "README.md", "BUILD-REPORT.md", "pyproject.toml", "run_jarvis.py", "Start-JARVIS.bat", "Setup-JARVIS.bat", "Package-JARVIS.bat", "requirements.txt", "requirements-dev.txt", "requirements-lock.txt", "requirements-offline-voice.txt", "requirements-macos.txt", "requirements-macos-dev.txt"}
+TOP = {".gitignore", ".gitattributes", ".env.example", "README.md", "BUILD-REPORT.md", "pyproject.toml", "run_jarvis.py", "Start-JARVIS.bat", "Setup-JARVIS.bat", "Package-JARVIS.bat", "requirements.txt", "requirements-dev.txt", "requirements-lock.txt", "requirements-offline-voice.txt", "requirements-macos.txt", "requirements-macos-dev.txt"}
 PREFIXES = ("jarvis/", "tests/", "scripts/", "packaging/", ".github/workflows/")
 SECRET = re.compile(r"AIza[A-Za-z0-9_-]{35}|(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{30,}|sk-(?:ant-)?[A-Za-z0-9_-]{40,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")
 
@@ -28,7 +29,15 @@ def audit(entries):
         raise RuntimeError("Source audit failed:\n" + "\n".join(failures))
 
 def source_entries():
-    return [(p.relative_to(ROOT).as_posix(), p.read_bytes()) for p in ROOT.rglob("*") if p.is_file() and permitted(p.relative_to(ROOT).as_posix())]
+    entries = []
+    for folder, dirs, files in os.walk(ROOT):
+        dirs[:] = [name for name in dirs if name in {"jarvis", "tests", "scripts", "docs", "packaging", ".github", "workflows"} and not name.startswith("__")]
+        for name in files:
+            path = Path(folder) / name
+            relative = path.relative_to(ROOT).as_posix()
+            if permitted(relative):
+                entries.append((relative, path.read_bytes()))
+    return entries
 
 def main():
     parser = argparse.ArgumentParser()

@@ -22,7 +22,9 @@ try:
     while process.poll() is None and time.monotonic() - started < 90:
         cpu = observed.cpu_percent(interval=1)
         elapsed = time.monotonic() - started
-        samples.append({"elapsed": round(elapsed, 1), "cpu_percent_one_core": cpu, "rss_mb": round(observed.memory_info().rss / 2**20, 1)})
+        phase_file = root / "phase.json"
+        phase = json.loads(phase_file.read_text())["phase"] if phase_file.exists() else "startup"
+        samples.append({"elapsed": round(elapsed, 1), "phase": phase, "cpu_percent_one_core": cpu, "rss_mb": round(observed.memory_info().rss / 2**20, 1)})
     if process.poll() is None:
         process.kill()
         raise RuntimeError("Packaged lifecycle check exceeded 90 seconds")

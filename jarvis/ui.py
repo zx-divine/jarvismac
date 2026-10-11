@@ -21,6 +21,7 @@ from .session import Session, State, control_phrase
 from .listener import LocalListener
 from .speech import local_speech
 from .offline import local_command
+import sys
 
 STYLE = """
 QWidget { background: #080f1c; color: #d7e6f5; font-family: 'Segoe UI'; font-size: 13px; }
@@ -68,6 +69,7 @@ class Window(QMainWindow):
         self.token_count, self.buffer = 0, ""
         self.audio_file = None
         self.local_speaking = False
+        self.voice_error_count = 0
         self.setWindowTitle("J.A.R.V.I.S. · ASH's personal assistant")
         self.resize(1240, 810)
         self.setMinimumSize(940, 650)
@@ -221,7 +223,7 @@ class Window(QMainWindow):
         self.chat.setPlaceholderText("Your conversation with JARVIS")
         layout.addWidget(self.chat)
         quick = QHBoxLayout()
-        for label, tool, args in [("System status", "system_info", {}), ("VS Code", "open_app", {"app": "vscode"}), ("Explorer", "open_app", {"app": "explorer"}), ("Windows Settings", "open_app", {"app": "settings"}), ("Abort shutdown", "power", {"action": "abort"})]:
+        for label, tool, args in [("System status", "system_info", {}), ("VS Code", "open_app", {"app": "vscode"}), ("Finder" if sys.platform == "darwin" else "Explorer", "open_app", {"app": "explorer"}), ("System Settings" if sys.platform == "darwin" else "Windows Settings", "open_app", {"app": "settings"}), ("Abort shutdown", "power", {"action": "abort"})]:
             button = QPushButton(label)
             button.clicked.connect(lambda checked=False, n=tool, a=args: self.quick(n, a))
             quick.addWidget(button)
@@ -354,7 +356,7 @@ class Window(QMainWindow):
         self.begin("diagnostic", diagnose(), "completed")
 
     def test_speaker(self):
-        if self.session.state == State.SLEEPING:
+        if self.busy or self.session.state == State.SLEEPING:
             self.log("Wake manually before testing speaker.")
             return
         self.stop_speech()
@@ -373,6 +375,7 @@ class Window(QMainWindow):
         elif state in {"listening", "thinking", "speaking", "idle"}:
             self.session.transition(self.session.generation, State.LISTENING if state == "idle" else State(state))
         self.state = self.orb.state = state
+        self.orb.timer.setInterval(250 if state == "sleeping" else 66 if self.settings.low_power else 33)
         self.orb.update()
         self.status.setText(state.upper() + (" · " + detail if detail else ""))
         if self.session.hard_muted:
@@ -537,7 +540,7 @@ class Window(QMainWindow):
     def approve(self, generation, tool, args, answer):
         if answer.done() or not self.session.valid(generation):
             if not answer.done():
-                answer.set_result(False)
+                Service.resolve(answer, False)
             return
         self.set_state("thinking", "waiting for ASH's approval")
         dialog = QMessageBox(self)
@@ -560,7 +563,7 @@ class Window(QMainWindow):
         approved = dialog.exec() == QMessageBox.StandardButton.Yes
         self.approval_dialog = None
         if not answer.done():
-            answer.set_result(approved and self.session.valid(generation))
+            Service.resolve(answer, approved and self.session.valid(generation))
         self.log(tool.name + (" approved by ASH" if approved else " denied by ASH"))
 
     def audit(self, name, ok):
@@ -596,6 +599,8 @@ class Window(QMainWindow):
         self.begin("listen", transcribe(self.settings, self.vault, self.microphone, self.service.level.emit), "transcript")
 
     def audio_level(self, level):
+        if self.session.hard_muted or self.closing:
+            level = 0
         self.orb.level = level
         self.meter.setValue(round(level * 100))
 
@@ -642,6 +647,9 @@ class Window(QMainWindow):
 
     def start_listener(self, force=False):
         self.retired_listeners = [item for item in self.retired_listeners if item.thread and item.thread.is_alive()]
+        if self.retired_listeners and not self.closing and self.settings.mic_enabled and not self.session.hard_muted:
+            QTimer.singleShot(500, self.start_listener)
+            return
         if self.closing or self.listener or self.retired_listeners or not self.settings.mic_enabled or self.session.hard_muted:
             return
         if not (self.settings.wake_word or force):
@@ -666,6 +674,8 @@ class Window(QMainWindow):
             self.listener = None
 
     def listener_status(self, text):
+        if self.closing or (self.sender() is not None and self.sender() is not self.listener):
+            return
         self.log(text)
         self.status.setText(("STANDBY · " if self.session.state == State.SLEEPING else "") + text)
 
@@ -705,7 +715,7 @@ class Window(QMainWindow):
         self.log("New awake session activated.")
         if not self.mute_button.isChecked():
             if not self.tts.availableVoices():
-                self.voice_error("Windows speech voices are unavailable. Install a Windows voice in Language/Speech settings; manual wake still works.")
+                self.voice_error("Local speech voices are unavailable. Install an OS speech voice and check the default output device; manual wake still works.")
                 return
             self.set_state("speaking", "local wake acknowledgement")
             self.local_speaking = True
@@ -765,7 +775,7 @@ class Window(QMainWindow):
         for device in QMediaDevices.audioOutputs():
             if bytes(device.id()).hex() == self.settings.speaker_device:
                 self.output.setDevice(device)
-        self.orb.timer.setInterval(66 if self.settings.low_power else 33)
+        self.orb.timer.setInterval(250 if self.session.state == State.SLEEPING else 66 if self.settings.low_power else 33)
 
     def speak(self, text):
         if self.session.state == State.SLEEPING or not self.settings.speech_enabled or self.mute_button.isChecked() or self.busy:
@@ -774,7 +784,7 @@ class Window(QMainWindow):
         self.set_state("speaking", "spoken reply")
         if self.settings.speech_mode == "local":
             if not self.tts.availableVoices():
-                self.voice_error("No Windows speech voice is available. Install a Windows language voice or configure cloud speech.")
+                self.voice_error("No local speech voice is available. Install an OS speech voice or configure cloud speech.")
                 return
             self.local_speaking = True
             self.tts.say(text[:6000])
@@ -818,12 +828,16 @@ class Window(QMainWindow):
             self.audio_file = None
 
     def voice_error(self, text):
+        self.voice_error_count += 1
         self.set_state("error", text[:100])
         self.write("\n[Voice error] " + text + "\n")
         self.log("Voice output failed. Check selected device and voice in Settings.")
 
     def stop_speech(self):
         self.pending_speech = ""
+        if self.busy and self.task_kind == "speech":
+            self.session.invalidate()
+            self.service.cancel()
         self.local_speaking = False
         self.session.capture_after = time.monotonic() + 0.6
         self.tts.stop()
@@ -859,6 +873,7 @@ class Window(QMainWindow):
             self.hard_mute_button.blockSignals(True)
             self.hard_mute_button.setChecked(settings.hard_mute)
             self.hard_mute_button.blockSignals(False)
+            self.registry.platform.close()
             self.registry = Registry(settings, self.directory)
             self.engine = Engine(settings, self.vault, self.store, self.registry)
             self.configure_voice()
@@ -993,6 +1008,7 @@ class Window(QMainWindow):
         configure_logging(self.directory)
         self.session.sleep()
         self.session.mute(self.settings.hard_mute)
+        self.registry.platform.close()
         self.registry = Registry(self.settings, self.directory)
         self.engine = Engine(self.settings, self.vault, self.store, self.registry)
         old_panel = self.settings_panel
@@ -1038,6 +1054,13 @@ class Window(QMainWindow):
                 QMessageBox.warning(self, "Export failed", str(exc))
 
     def closeEvent(self, event: QCloseEvent):
+        if self.closing:
+            if any(item.thread and item.thread.is_alive() for item in self.retired_listeners):
+                event.ignore()
+                QTimer.singleShot(500, self.close)
+            else:
+                event.accept()
+            return
         self.closing = True
         self.metrics_timer.stop()
         self.flush_timer.stop()
@@ -1047,8 +1070,15 @@ class Window(QMainWindow):
         for listener in self.retired_listeners:
             listener.stop()
         self.settings_panel.model_service.close()
+        self.registry.platform.close()
         try:
             self.service.close()
         except Exception:
             pass
-        event.accept()
+        if any(item.thread and item.thread.is_alive() for item in self.retired_listeners):
+            self.status.setText("Closing local recognition safely; waiting for native model loading to finish…")
+            self.setEnabled(False)
+            event.ignore()
+            QTimer.singleShot(500, self.close)
+        else:
+            event.accept()

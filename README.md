@@ -1,6 +1,6 @@
 # J.A.R.V.I.S. — ASH's personal desktop assistant
 
-A real Windows/Python/PySide6 desktop application with Gemini as its primary AI brain, permission-controlled PC tools, local wake/sleep recognition, and optional conversation memory. OpenAI-compatible and Anthropic providers are retained. No Docker, WSL, local LLM, web server, or GPU renderer is required.
+A native Windows and Apple Silicon macOS Python/PySide6 desktop application with Gemini as its primary AI brain, permission-controlled PC tools, local wake/sleep recognition, and optional conversation memory. OpenAI-compatible and Anthropic providers are retained. No Docker, WSL, local LLM, web server, or GPU renderer is required.
 
 ## Start on this computer
 
@@ -49,7 +49,7 @@ API credentials are private to the current Windows user/computer profile. Migrat
 
 Local phrases: **Wake up, Jarvis**, **Hey Jarvis, wake up**, **Jarvis, activate**, **Jarvis, online**, and the original **Hey Jarvis**. Sleep phrases: **Jarvis, go to sleep**, **Jarvis, sleep**, **Jarvis, standby**, **Jarvis, go offline**, **Go to sleep, Jarvis**. These controls also work as typed commands without any API call.
 
-Wake acknowledgements use local Windows SAPI speech so they work offline. Recognition requires a real installed Vosk model. The supplied English model contains the word `jarvis`; recognition accuracy still depends on ASH's voice, microphone and room noise. It is phrase recognition, not a custom commercial wake-word detector. The VAD threshold can be adjusted; lower values accept quieter input but more noise. There is no claimed calibrated wake-word sensitivity score.
+Wake acknowledgements use interruptible native OS speech (Windows System.Speech in an isolated process; macOS say) so they work offline. Recognition requires a real installed Vosk model. The supplied English model contains the word `jarvis`; recognition accuracy still depends on ASH's voice, microphone and room noise. It is phrase recognition, not a custom commercial wake-word detector. The VAD threshold can be adjusted; lower values accept quieter input but more noise. There is no claimed calibrated wake-word sensitivity score.
 
 Speech is half duplex. Use **Stop Speaking**, **Sleep**, or **Hard Mute** to interrupt during playback; voice sleep recognition resumes after playback. This prevents the assistant's own voice from issuing commands without pretending to implement acoustic echo cancellation. During thinking, voice sleep remains available through the independent local detector.
 
@@ -71,7 +71,7 @@ Alternative chat providers remain selectable:
 * Anthropic: native Messages streaming with tool use and an Anthropic API key.
 * OpenAI-compatible speech: separate audio API key, transcription model, TTS model and voice. Microphone audio / reply text goes to that configured endpoint only when the selected cloud feature is active.
 
-Local speech uses the Windows default speaker and installed Windows voices. Cloud speech supports speaker selection in Settings. Change the local SAPI output through Windows Sound settings. Device enumeration is refreshed by reopening the app; the background detector retries a disconnected input locally without cloud traffic.
+Local speech uses the Windows default speaker and installed Windows voices. Cloud speech supports speaker selection in Settings. Change the local output through your OS Sound settings. Device enumeration is refreshed by reopening the app; the background detector retries a disconnected input locally without cloud traffic.
 
 ## Windows tools and developer mode
 
@@ -121,3 +121,16 @@ For a deliberate microphone capture check run `scripts/check_microphone.py` (one
 `ui.py` and `orb.py`: native Qt interface and lightweight painter animation. `session.py`: thread-safe state/generation gate. `worker.py`: asyncio service thread and approval futures. `listener.py` / `audio.py` / `speech.py`: local detection, capture/VAD, cloud transcription and speech. `gemini.py` / `providers.py`: cloud adapters. `tools.py` / `security.py`: validated PC capabilities, filesystem policy and DPAPI. `storage.py` / `config.py`: SQLite and persistent settings. `tests/`: safety, streaming, storage, concurrency and GUI checks.
 
 The original specification and additive update are preserved verbatim in [original requirements](docs/ORIGINAL-REQUIREMENTS.md) and [Gemini/wake-sleep requirements](docs/GEMINI-WAKE-SLEEP-REQUIREMENTS.md).
+
+
+## Crash recovery and macOS
+
+The native Windows speech interruption crash has been reproduced and repaired. See [crash evidence and fixes](docs/CRASH-RECOVERY.md) and [current build results](BUILD-REPORT.md). Normal launches now retain bounded native stack traces, prevent competing app instances and preserve corrupt SQLite state before safe recovery.
+
+No Gemini key is required for manual/local wake and sleep, local speech, system metrics, Settings, microphone diagnostics or explicit offline commands. Examples: system status, what time is it, open calculator, open chrome, olume up. Actions still pass through approvals. With no Gemini key, the standby listener uses local Vosk text for this vocabulary. Arbitrary AI conversation gives setup guidance. Cloud transcription/model discovery/streaming/function calling remain available after configuring the original provider settings.
+
+Use **Logs → Test Microphone** and **Test Speaker** while awake; microphone testing requires your microphone permission and Hard Mute off. Adjust the input device and VAD threshold if the meter moves but quiet speech is missed. Hard Mute also cancels work and speech, closes streams and invalidates queued voice events across unmute.
+
+For the M1 port, read [macOS setup, permissions and build instructions](docs/MACOS.md). Run ash scripts/setup_macos.sh on an actual arm64 Mac, then .venv/bin/python -m jarvis. Mac credentials use native Keychain, data lives under ~/Library/Application Support/ASH-JARVIS, and approved native tools map to Finder/TextEdit/System Settings/Music. Build with ash scripts/build_macos.sh; Windows cannot build or verify the native .app.
+
+The shared GitHub Actions workflow tests and packages Windows x64 and macOS arm64. Packages are CI artifacts, excluded from source commits. Mac ad-hoc signing is not Developer ID notarization. See [release status](docs/RELEASE-STATUS.md) for actual publishing and hardware-verification status.
