@@ -40,3 +40,19 @@ models/
 *.dSYM/
 .DS_Store
 docs/*REQUIREMENTS.md
+
+# Local credentials, private keys and alternate runtime/data folders.
+.credentials/
+.secrets/
+.ssh/
+credentials*.json
+secrets*.json
+tokens*.json
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+venv/
+env/
+logs/
