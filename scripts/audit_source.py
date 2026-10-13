@@ -7,12 +7,12 @@ import sys
 import os
 
 ROOT = Path(__file__).resolve().parents[1]
-TOP = {".gitignore", ".gitattributes", ".env.example", "README.md", "BUILD-REPORT.md", "pyproject.toml", "run_jarvis.py", "Start-JARVIS.bat", "Setup-JARVIS.bat", "Package-JARVIS.bat", "requirements.txt", "requirements-dev.txt", "requirements-lock.txt", "requirements-offline-voice.txt", "requirements-macos.txt", "requirements-macos-dev.txt"}
+TOP = {".gitignore", ".gitattributes", ".env.example", "README.md", "BUILD-REPORT.md", "pyproject.toml", "run_jarvis.py", "Start-JARVIS.command", "Setup-JARVIS.command", "Package-JARVIS.command", "requirements.txt", "requirements-offline-voice.txt", "requirements-macos.txt", "requirements-macos-dev.txt"}
 PREFIXES = ("jarvis/", "tests/", "scripts/", "packaging/", ".github/workflows/")
 SECRET = re.compile(r"AIza[A-Za-z0-9_-]{35}|(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{30,}|sk-(?:ant-)?[A-Za-z0-9_-]{40,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")
 
 def permitted(name):
-    return (name in TOP or name.startswith(PREFIXES) or name in {"docs/VERIFICATION.md", "docs/CRASH-RECOVERY.md", "docs/MACOS.md", "docs/RELEASE-STATUS.md"}) and "__pycache__" not in name and not name.endswith((".pyc", ".bin", ".wav", ".log"))
+    return (name in TOP or name.startswith(PREFIXES) or name in {"docs/VERIFICATION.md", "docs/MACOS.md", "docs/RELEASE-STATUS.md"}) and "__pycache__" not in name and not name.endswith((".pyc", ".bin", ".wav", ".log"))
 
 def audit(entries):
     failures = []

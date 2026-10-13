@@ -8,10 +8,10 @@ Local Mac speech uses `/usr/bin/say` through a cancellable Qt process, with stdi
 
 ## Source setup on an M1 Mac
 
-Use macOS 12 or newer and native arm64 Python 3.12. Do not use a Rosetta x86 terminal or copy a Windows virtual environment. Obtain the audited source ZIP in the prepared handoff folder or clone `https://github.com/zx-divine/jarvis` after publishing succeeds. Extract it to a normal writable project directory, then:
+Use macOS 12 or newer and native arm64 Python 3.12. Do not use a Rosetta x86 terminal or copy a Windows virtual environment. Obtain the audited source ZIP in the prepared handoff folder or clone `https://github.com/zx-divine/jarvismac`. Extract it to a normal writable project directory, then:
 
 ```bash
-cd jarvis
+cd jarvismac
 bash scripts/setup_macos.sh
 .venv/bin/python -m jarvis
 ```

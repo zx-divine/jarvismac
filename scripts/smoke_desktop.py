@@ -21,7 +21,7 @@ window.tts.stateChanged.connect(lambda state: states.append(state.name))
 def inspect():
     window.grab().save(str(directory / "standby.png"))
     print("Window rendered:", directory / "standby.png")
-    print("Windows voices:", [v.name() for v in window.tts.availableVoices()])
+    print("Local voices:", [v.name() for v in window.tts.availableVoices()])
     if "--voice" in sys.argv:
         window.wake()
     else:

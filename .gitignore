@@ -56,3 +56,9 @@ tokens*.json
 venv/
 env/
 logs/
+
+# Windows launchers and environment manifests do not belong in this Mac repository.
+*.bat
+*.exe
+requirements-lock.txt
+requirements-dev.txt

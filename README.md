@@ -1,136 +1,53 @@
-# J.A.R.V.I.S. — ASH's personal desktop assistant
+# J.A.R.V.I.S. for Apple Silicon macOS
 
-A native Windows and Apple Silicon macOS Python/PySide6 desktop application with Gemini as its primary AI brain, permission-controlled PC tools, local wake/sleep recognition, and optional conversation memory. OpenAI-compatible and Anthropic providers are retained. No Docker, WSL, local LLM, web server, or GPU renderer is required.
+Native Python/PySide6 desktop assistant for M1 and other Apple Silicon Macs. Gemini is the primary AI provider; optional OpenAI-compatible and Anthropic providers remain available. This repository contains Mac launchers, Mac dependencies and a native arm64 build workflow.
 
-## Start on this computer
+## Install and launch
 
-Double-click **Start-JARVIS.bat**. It uses the packaged `dist/JARVIS/JARVIS.exe` when available, otherwise the project's virtual environment. The environment and small English Vosk model have been installed during development.
+Use macOS 12 or newer with native arm64 Python 3.12. Open a native Terminal (not Rosetta), then:
 
-JARVIS starts in **STANDBY**. The first installation does not capture audio until you explicitly enable microphone access. Press **Wake JARVIS** for text interaction and local commands.
-
-1. Open **Settings → AI provider**. Gemini is selected by default.
-2. Enter your Gemini API key and click **Verify Gemini models with this API key** while awake. Alternatively launch with the `GEMINI_API_KEY` environment variable. Select a model actually returned for your account; then save Settings.
-3. Confirm the model's free-tier eligibility and your quota in [Google AI Studio](https://aistudio.google.com/) and [Google's pricing page](https://ai.google.dev/gemini-api/docs/pricing). Listing models verifies availability, not billing tier. No code enables paid billing or changes your Google project.
-4. Send a message. Missing/invalid keys, unavailable models, quota errors and network failures produce setup guidance. Nothing simulates an AI reply.
-5. For voice wake/sleep, open **Voice & privacy**, enable microphone permission and the **offline standby wake/sleep detector**, and select the installed `models/vosk-model-small-en-us-0.15` folder. Confirm the local-listening disclosure. The detector starts after these settings are saved and at subsequent launches where permission remains enabled.
-6. For multilingual voice commands, select **Gemini speech input**. It uses your Gemini key and selected audio-capable model while awake. Use **Local Windows voice** for speech output without a second API key. Enable **Speak replies** if desired. Offline Vosk and an OpenAI-compatible audio API are also available.
-7. Approve only the project directories you want accessible under **Files & actions**. All file-content transfers and PC actions ask before running. Developer commands additionally require developer mode.
-
-**Do not paste credentials into chat or saved memories.** Enter keys in Settings, which protects them with Windows DPAPI, or use an environment variable. Environment keys take precedence for Gemini. `.env` is ignored by Git and is deliberately not automatically loaded; `.env.example` documents the variable without a secret.
-
-## Setup on another Windows computer
-
-Windows 10 64-bit, Python 3.11 or 3.12 from [python.org](https://www.python.org/downloads/windows/), and internet access for installation are sufficient. Include the Python launcher when installing Python.
-
-Run `Setup-JARVIS.bat`, then `Start-JARVIS.bat`. Setup installs the locked environment and downloads the small official offline English model. For Python 3.12 instead of 3.11:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe scripts\download_voice_model.py
-.\.venv\Scripts\python.exe -m jarvis
+```bash
+git clone https://github.com/zx-divine/jarvismac.git
+cd jarvismac
+bash scripts/setup_macos.sh
+.venv/bin/python -m jarvis
 ```
 
-`requirements.txt` pins direct runtime dependencies. `requirements-lock.txt` captures the complete Windows development environment, including test/build dependencies. To reproduce that exact environment use `pip install -r requirements-lock.txt`. Do not copy a virtual environment between computers; recreate it. A packaged build needs no installed Python.
+Finder launchers are `Setup-JARVIS.command`, `Start-JARVIS.command` and `Package-JARVIS.command`. Setup installs the Mac dependencies and downloads the local English Vosk model. Start opens `dist/JARVIS.app` if built, otherwise starts the source environment. Do not transfer a Windows virtual environment or executable to the Mac.
 
-API credentials are private to the current Windows user/computer profile. Migrating encrypted blobs to another account is unsupported: enter the key again. The app does not obtain API access from a Claude Code or other chat subscription.
+## Gemini and voice
 
-## Wake, sleep and hard mute
+JARVIS starts in standby. Wake manually, open Settings, enter a Gemini API key, verify the models available to your account and select one. An existing `GEMINI_API_KEY` environment variable takes precedence; `.env` files are not loaded automatically. Keys entered in Settings use native macOS Keychain. Never put keys into chat, source or Git.
 
-| State/control | Behavior |
-| --- | --- |
-| SLEEPING / STANDBY | No normal conversation, AI requests, cloud transcription, or tool dispatch. Only the approved local detector remains active. |
-| LISTENING | Accept text and voice requests. Microphone waveform reflects input level. |
-| THINKING / PROCESSING | Run cancellable AI/local tasks off the UI thread. The local detector can still recognize sleep. |
-| SPEAKING | Play the selected voice. Listening pauses during playback and briefly afterward to prevent self-triggering. |
-| Hard Mute | Stop every microphone stream, including wake detection. Manual Wake and text chat still work. Unmute manually to restore permitted capture. |
-| Stop Speaking | Interrupt playback. Sleep also interrupts playback and invalidates all queued replies/actions. |
-| Stop all | Cancel the active session's work and stop background listening. Already started Windows operations cannot be undone. |
+Gemini uses the official google-genai SDK with streaming, bounded conversation context, timeouts, bounded retries and manual function calling. Automatic SDK function execution is disabled. Alternative chat providers and separate cloud audio credentials remain supported. Check current model pricing and quota in your provider account; JARVIS does not enable billing.
 
-Local phrases: **Wake up, Jarvis**, **Hey Jarvis, wake up**, **Jarvis, activate**, **Jarvis, online**, and the original **Hey Jarvis**. Sleep phrases: **Jarvis, go to sleep**, **Jarvis, sleep**, **Jarvis, standby**, **Jarvis, go offline**, **Go to sleep, Jarvis**. These controls also work as typed commands without any API call.
+Local wake/sleep requires explicit microphone permission and enabling the offline standby detector in Settings. Select the installed Vosk model and input device. Wake phrases include “Wake up, Jarvis” and “Hey Jarvis”; sleep phrases include “Jarvis, go to sleep” and “Jarvis, standby”. Typed wake/sleep commands also work without API calls. The small English model is not reliable for Hindi/Hinglish; Gemini speech input is available while awake with a suitable model and key.
 
-Wake acknowledgements use interruptible native OS speech (Windows System.Speech in an isolated process; macOS say) so they work offline. Recognition requires a real installed Vosk model. The supplied English model contains the word `jarvis`; recognition accuracy still depends on ASH's voice, microphone and room noise. It is phrase recognition, not a custom commercial wake-word detector. The VAD threshold can be adjusted; lower values accept quieter input but more noise. There is no claimed calibrated wake-word sensitivity score.
+Local speech uses macOS `/usr/bin/say` and installed voices. Listening pauses during speech. Stop Speaking, Sleep or Hard Mute interrupts playback. Hard Mute closes every microphone stream and invalidates queued recognition; restore microphone capture manually. Sleep blocks normal AI requests and tool dispatch and discards stale replies/actions. No hidden service is installed; closing the window stops the app.
 
-Speech is half duplex. Use **Stop Speaking**, **Sleep**, or **Hard Mute** to interrupt during playback; voice sleep recognition resumes after playback. This prevents the assistant's own voice from issuing commands without pretending to implement acoustic echo cancellation. During thinking, voice sleep remains available through the independent local detector.
+## Mac tools, permissions and privacy
 
-Normal commands while sleeping are ignored. Every wake creates a generation identifier; repeated wakes do not duplicate sessions. Sleep invalidates that identifier before cancelling tasks. Provider responses, transcription results, TTS buffers, deferred callbacks and approvals from an older generation are discarded. A Windows action that already started may complete, and cancelling a cloud request does not guarantee it was not billed.
+Allowlisted tools include Finder, TextEdit, System Settings, Calculator, browser/VS Code launches, Music controls, volume, system metrics, date/time, approved screenshots and confirmed power actions with a cancellation window. File access is limited to approved folders. Sensitive actions, file searches/reads and content transfers require approval; no arbitrary shell or deletion tool exists. Developer command presets remain permission-controlled.
 
-Continuous listening is disabled by default. Wake listening also requires explicit microphone permission. You can stop background detection entirely with **Stop offline listening**, **Stop all**, Hard Mute, or by disabling it in Settings. The window may be minimized while detection runs. Closing the window stops the app; no hidden service or remote-control port is installed.
+Grant Microphone, Automation or Screen Recording permissions only when needed through normal macOS controls. Do not grant blanket Accessibility or Full Disk Access for this app. See [Mac permissions and build instructions](docs/MACOS.md).
 
-## AI, languages and cost
+Settings and opt-in SQLite history/memory live under `~/Library/Application Support/ASH-JARVIS`. History is off by default; session context works without saving transcripts. Approved memories are sent with future chat requests. SQLite is plaintext, so save only approved information. Credential material is stored in Keychain rather than the database. Microphone recordings are not saved by default; cloud audio is sent only for enabled cloud features. Diagnostics omit credentials and conversation contents.
 
-Gemini uses the official **google-genai** Python SDK, manual function calling, streaming, bounded context, timeouts and bounded retries. SDK automatic function execution is disabled. Opaque Gemini thought signatures and function identifiers are retained in the active tool round trip; they are not displayed or saved in history.
+## Tests and native application build
 
-Google's documentation checked on **11 October 2026** lists a free tier for `gemini-3.8-flash`. The Settings verifier recommends it only if the account's actual model listing returns it. There is no hardcoded default model; choose an available model and verify current pricing. Quotas depend on project/tier and include requests per minute, tokens per minute and daily limits. Check [current rate limits](https://ai.google.dev/gemini-api/docs/rate-limits); no fixed quota is promised. Free-tier content may be used by Google to improve its products, as disclosed on its pricing page. Avoid sensitive prompts if that policy is unsuitable.
-
-Gemini chat and audio input can handle English, Hindi and Hinglish. The small offline English Vosk model does not provide reliable Hindi/Hinglish transcription. Gemini audio input is the default multilingual option while awake. Both transcription and subsequent chat consume requests; silence makes no cloud request. Windows Hindi TTS requires an installed Hindi Windows voice, or a suitable cloud voice.
-
-Alternative chat providers remain selectable:
-
-* OpenAI / compatible: HTTPS Chat Completions streaming with function calling. Configure a tool-capable model and endpoint-specific key.
-* Anthropic: native Messages streaming with tool use and an Anthropic API key.
-* OpenAI-compatible speech: separate audio API key, transcription model, TTS model and voice. Microphone audio / reply text goes to that configured endpoint only when the selected cloud feature is active.
-
-Local speech uses the Windows default speaker and installed Windows voices. Cloud speech supports speaker selection in Settings. Change the local output through your OS Sound settings. Device enumeration is refreshed by reopening the app; the background detector retries a disconnected input locally without cloud traffic.
-
-## Windows tools and developer mode
-
-Real tools include CPU/RAM/disk/battery metrics, current date/time, VS Code/Chrome/Edge/Notepad/Calculator/Explorer/Settings launch, HTTPS websites, browser web search, bounded filename searches, selected UTF-8 source reads, new folders and text/source files, approved projects, volume/media keys, explicitly approved PNG screenshots, and confirmed shutdown/restart with a 60-second abort window.
-
-The registry validates exact JSON keys/types and rejects unknown tools. Every action and file read/search asks for approval; read-only system/time metrics do not. Launch results accurately report a request sent to Windows, rather than claiming the application/page is ready. Screenshots stay in the chosen approved folder and are not uploaded. Browser search opens a search page; JARVIS does not pretend to have read its results.
-
-Developer mode supports selected-code explanation, debugging, security review and patch suggestions through real AI. It never modifies existing source. Approved command presets are `git status`, `git diff`, `python -m pytest -q`, and `npm test -- --watch=false`; output and exit code are shown, with a 60-second timeout and 64 KB output cap. Process trees are terminated on cancellation. Presets execute trusted project code and are **not** an OS sandbox. Review the directory before approval. Packaged JARVIS cannot serve as a Python interpreter; run pytest using the source environment or your terminal.
-
-Custom commands save a tool name and validated JSON arguments, not arbitrary shell text. File access is limited to explicitly approved local folders. Credential paths, alternate data streams, device/network paths, symbolic links, junctions and JARVIS private storage are blocked. New file creation uses exclusive mode and never overwrites. There is no file-deletion or arbitrary-shell tool.
-
-## Memory, privacy and diagnostics
-
-Settings, approved folders, custom commands, approved memories and opt-in chat history use SQLite under `%LOCALAPPDATA%\ASH-JARVIS`. `JARVIS_DATA_DIR` can override that location for development. In-session conversational context works even when transcript storage is disabled. Sleep preserves the current conversation for follow-up questions after waking.
-
-History is off by default; enable it explicitly to save future text. Retention defaults to 30 days and is applied at startup and settings changes. You can delete individual conversations, delete memories, or clear all app data/credentials in **Memory & security**. Memories are sent with future chat requests. SQLite is plaintext, so only save information you approve. Clear Data does not remove environment variables managed by Windows or user-created files/screenshots outside the app's private data directory.
-
-Audio capture stays in memory. Cloud TTS uses a transient local WAV for playback, removed afterward and cleaned after a crash. No microphone recordings are saved by default. Diagnostics contain session action names/status and sanitized crash stack locations, not conversation text, API bodies, credentials or tool arguments. Exported diagnostic copies belong to you and are not removed by Clear Data.
-
-Files and command output are marked as untrusted data, known secret patterns are redacted, and the system prompt instructs providers to ignore embedded instructions. Model instructions alone cannot guarantee immunity to prompt injection: the enforceable boundary is validated capabilities and ASH's approval for all sensitive actions. Do not approve an unexpected action merely because the model requested it. No downloaded program or model response is automatically executed.
-
-## Tests and packaging
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m pytest -q
-.\Package-JARVIS.bat
+```bash
+bash scripts/build_macos.sh
+open dist/JARVIS.app
 ```
 
-The build is `dist\JARVIS\JARVIS.exe`. Distribute the entire `dist\JARVIS` directory, including `_internal`, Qt plugins and the Vosk model. The launcher prefers this build. Packaging uses PyInstaller in directory mode for more predictable startup and dependency loading. Build on Windows; this is not a signed installer or a security audit certification. PySide6 and bundled dependencies retain their upstream licenses; review distribution/license obligations before publishing.
+The Mac build checks arm64 Python, installs Mac development requirements, runs tests, loads the actual Vosk library/model, builds the arm64 `.app`, verifies its ad-hoc signature, performs a package startup smoke check and creates `dist/JARVIS-macos-arm64.zip`. Generated packages are excluded from Git. No local Windows rebuild is involved.
 
-For a deliberate microphone capture check run `scripts/check_microphone.py` (one second, no save/upload). `scripts/smoke_desktop.py --voice --native` opens the actual window briefly and exercises local speech. The test suite uses mocked cloud responses and dummy credentials; it does not spend API credits. See [verification details](docs/VERIFICATION.md) for actual checks and remaining acceptance work.
+[GitHub Actions](https://github.com/zx-divine/jarvismac/actions) runs only the Mac job for this repository and uploads the `JARVIS-macos-arm64` artifact. The original shared-source Mac job passed and produced an artifact; the corrected layout needs its own CI verification. See [verification record](docs/VERIFICATION.md).
 
-## Troubleshooting
+Ad-hoc signing is not Developer ID signing or notarization. Native CI does not verify your M1 microphone, room accuracy, permissions or live automation. Follow normal macOS security controls and the hardware acceptance checklist in [docs/MACOS.md](docs/MACOS.md).
 
-* **No Gemini key/model:** Wake manually, configure the key, verify models, select one, save. Never share the key in chat.
-* **HTTP 429:** Check project quota in AI Studio. Retry later or choose an available free-tier model; the app does not enable billing.
-* **No microphone / disconnect:** Windows Settings → Privacy → Microphone must allow desktop apps. Select an input device and remove Hard Mute. The local detector retries hardware errors.
-* **Wake unavailable:** Confirm the Vosk folder contains `am`, use an English model with `jarvis` in its vocabulary, and enable local detection. Manual Wake always remains available.
-* **No spoken reply:** Choose an installed Windows SAPI voice, enable Speak replies and unmute replies. Wake acknowledges locally even when normal spoken replies are disabled. Cloud output needs its separate audio credential.
-* **Files blocked:** Approve the specific project folder. Links/junctions and credential paths remain blocked even under an approved root.
-* **Startup settings/database failure:** Close JARVIS, back up `%LOCALAPPDATA%\ASH-JARVIS`, and rename `jarvis.sqlite3` plus its `-wal`/`-shm` companions to recover with fresh settings. Re-enter credentials if DPAPI fails after a Windows profile migration. Never delete personal project folders during recovery.
-* **Automatic startup:** Create your own shortcut to Start-JARVIS.bat in the Windows Startup folder. JARVIS installs no startup task. Start-minimized is selectable in Settings.
+## Source structure
 
-## Source map
+`jarvis/` retains the working shared engine, Qt UI, providers, voice, memory, security and platform adapters. Runtime platform guards select Mac Keychain, speech and automation paths on macOS. Cross-platform internals and regression tests are retained to preserve features; there are no Windows batch launchers or Windows environment lockfiles in this repository's current tree.
 
-`ui.py` and `orb.py`: native Qt interface and lightweight painter animation. `session.py`: thread-safe state/generation gate. `worker.py`: asyncio service thread and approval futures. `listener.py` / `audio.py` / `speech.py`: local detection, capture/VAD, cloud transcription and speech. `gemini.py` / `providers.py`: cloud adapters. `tools.py` / `security.py`: validated PC capabilities, filesystem policy and DPAPI. `storage.py` / `config.py`: SQLite and persistent settings. `tests/`: safety, streaming, storage, concurrency and GUI checks.
-
-The original specification and additive update are preserved verbatim in [original requirements](docs/ORIGINAL-REQUIREMENTS.md) and [Gemini/wake-sleep requirements](docs/GEMINI-WAKE-SLEEP-REQUIREMENTS.md).
-
-
-## Crash recovery and macOS
-
-The native Windows speech interruption crash has been reproduced and repaired. See [crash evidence and fixes](docs/CRASH-RECOVERY.md) and [current build results](BUILD-REPORT.md). Normal launches now retain bounded native stack traces, prevent competing app instances and preserve corrupt SQLite state before safe recovery.
-
-No Gemini key is required for manual/local wake and sleep, local speech, system metrics, Settings, microphone diagnostics or explicit offline commands. Examples: system status, what time is it, open calculator, open chrome, olume up. Actions still pass through approvals. With no Gemini key, the standby listener uses local Vosk text for this vocabulary. Arbitrary AI conversation gives setup guidance. Cloud transcription/model discovery/streaming/function calling remain available after configuring the original provider settings.
-
-Use **Logs → Test Microphone** and **Test Speaker** while awake; microphone testing requires your microphone permission and Hard Mute off. Adjust the input device and VAD threshold if the meter moves but quiet speech is missed. Hard Mute also cancels work and speech, closes streams and invalidates queued voice events across unmute.
-
-For the M1 port, read [macOS setup, permissions and build instructions](docs/MACOS.md). Run ash scripts/setup_macos.sh on an actual arm64 Mac, then .venv/bin/python -m jarvis. Mac credentials use native Keychain, data lives under ~/Library/Application Support/ASH-JARVIS, and approved native tools map to Finder/TextEdit/System Settings/Music. Build with ash scripts/build_macos.sh; Windows cannot build or verify the native .app.
-
-The shared GitHub Actions workflow tests and packages Windows x64 and macOS arm64. Packages are CI artifacts, excluded from source commits. Mac ad-hoc signing is not Developer ID notarization. See [release status](docs/RELEASE-STATUS.md) for actual publishing and hardware-verification status.
+The Windows project is maintained separately at https://github.com/zx-divine/jarvis.
